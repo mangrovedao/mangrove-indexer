@@ -32,10 +32,10 @@ export class TransactionOperations extends DbOperations {
     return transaction;
   }
 
-  public async hasTransactionWithHigherTimestamp(timestamp: Timestamp): Promise<boolean> {
+  public async hasTransactionWithGTETimestamp(timestamp: Timestamp): Promise<boolean> {
     const transaction = await this.tx.transaction.findFirst({
       where: {
-        time: { gt: new Date(timestamp.epochMs) }
+        time: { gte: new Date(timestamp.epochMs) }
       }
     });
     return transaction !== null;

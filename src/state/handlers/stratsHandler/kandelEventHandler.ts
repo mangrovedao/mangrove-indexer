@@ -93,9 +93,9 @@ const eventMatcher =
 async function waitForTimestamp(allDbOperation: AllDbOperations, timestamp:Timestamp) {
   let isReady = false;
   while (!isReady) {
-    isReady = await allDbOperation.transactionOperations.hasTransactionWithHigherTimestamp(timestamp);
+    isReady = await allDbOperation.transactionOperations.hasTransactionWithGTETimestamp(timestamp);
     if (!isReady) {
-      await sleep(1000);
+      await sleep(5000);
     }
   }
 }
