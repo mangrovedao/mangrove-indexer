@@ -102,10 +102,12 @@ const eventMatcher =
 async function waitForTimestamp(allDbOperation: AllDbOperations, timestamp:Timestamp) {
   let isReady = false;
   while (!isReady) {
-    isReady = await allDbOperation.transactionOperations.hasTransactionWithGTETimestamp(timestamp);
-    if (!isReady) {
-      await sleep(5000);
+    isReady = await allDbOperation.transactionOperations.hasTransactionWithTimestamp(timestamp, "gt");
+    if (isReady) {
+      break;
     }
+    isReady = await allDbOperation.transactionOperations.hasTransactionWithTimestamp(timestamp, "gte");
+    await sleep(5000);
   }
 }
 
