@@ -9,22 +9,37 @@ on:
   pull_request_target:
     branches: [ master, develop, test-pr ]
     types: [opened, synchronize, reopened, labeled]
-
-
 jobs:
-  node-webservice:
-    uses: proxima-one/github-workflows/.github/workflows/node-webservice.yml@master
-    with:
-      appName: mangrove
-      dockerfilePath: ./Dockerfile
-      pulumiPath: ./deploy
-      preview: ${{ github.event_name == 'pull_request' }}
-      publish: ${{ github.base_ref == 'deploy/amur' || github.ref_name == 'deploy/amur' }}
-      deploy: ${{ github.base_ref == 'deploy/amur' || github.ref_name == 'deploy/amur' }}
-    secrets:
-      CI_NPM_TOKEN: ${{ secrets.CI_NPM_TOKEN }}
-      DOCKER_REGISTRY_URL: ${{ secrets.DOCKER_REGISTRY_URL }}
-      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
-      PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+  buildAndTest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v2
+
+      - uses: actions/setup-node@v2
+        with:
+          node-version: '16.x'
+          cache: 'yarn'
+
+      - name: Install Dependencies
+        run: yarn install
+
+      - name: Build
+        run: yarn build
+
+      - name: Test
+        run: yarn test
+
+  check:
+    if: always()
+
+    needs:
+    - quick-check
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Decide whether the needed jobs succeeded or failed
+      uses: re-actors/alls-green@release/v1
+      with:
+        jobs: ${{ toJSON(needs) }}
