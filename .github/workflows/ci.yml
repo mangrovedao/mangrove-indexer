@@ -10,7 +10,7 @@ on:
     branches: [ master, develop, test-pr ]
     types: [opened, synchronize, reopened, labeled]
 jobs:
-  quick-check:
+  buildAndTest:
     runs-on: ubuntu-latest
     steps:
       - name: "Checkout"
