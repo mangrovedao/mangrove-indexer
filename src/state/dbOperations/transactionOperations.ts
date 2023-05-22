@@ -32,13 +32,15 @@ export class TransactionOperations extends DbOperations {
     return transaction;
   }
 
-  public async hasTransactionWithGTETimestamp(timestamp: Timestamp): Promise<boolean> {
+  public async hasTransactionWithTimestamp(timestamp: Timestamp, filter: "gte" | "gt"): Promise<boolean> {
     const transaction = await this.tx.transaction.findFirst({
       where: {
-        time: { gte: new Date(timestamp.epochMs) }
+        time: filter == "gte" ? { gte: new Date(timestamp.epochMs) } : { gt: new Date(timestamp.epochMs) }
       }
     });
     return transaction !== null;
   }
+
+
 
 }
