@@ -31,7 +31,8 @@ export class KandelEventsLogic extends EventsLogic {
         const reserveId = new AccountId(mangroveId.chainId,  event.reserveId == "" || !event.reserveId ? event.kandel : event.reserveId);
         await this.db.accountOperations.ensureAccount(reserveId);
         const newConfiguration = await this.db.kandelOperations.createNewKandelConfiguration(this.mapSetParamsToKandelConfiguration(event.params));
-        const adminId = new AccountId(mangroveId.chainId, event.owner).value;
+        const adminId = new AccountId(mangroveId.chainId, event.owner);
+        await this.db.accountOperations.ensureAccount(adminId);
         const baseToken = new TokenId(mangroveId.chainId, event.base);
         const quoteToken = new TokenId(mangroveId.chainId, event.quote);
 
@@ -40,7 +41,7 @@ export class KandelEventsLogic extends EventsLogic {
             txId: transaction!.id,
             updateFunc: (model) => {
                 _.merge(model, {
-                    adminId: adminId,
+                    adminId: adminId.value,
                     routerAddress: event.params.router,
                     congigurationId: newConfiguration.id,
                 });
