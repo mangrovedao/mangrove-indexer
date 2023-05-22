@@ -16,7 +16,9 @@ export class KandelOffer{
     price: number,
     gasreq: number,
     gasprice: number,
-    offerType: string
+    gasbase: number,
+    offerType: string,
+    deprovision: boolean,
     initialTxHash: string
   }){
     this.gives = params.gives
@@ -29,7 +31,9 @@ export class KandelOffer{
     this.price = params.price
     this.gasreq = params.gasreq
     this.gasprice = params.gasprice
+    this.gasbase = params.gasbase
     this.offerType = params.offerType
+    this.deprovision = params.deprovision
     this.initialTxHash = params.initialTxHash
   }
 
@@ -66,6 +70,12 @@ export class KandelOffer{
   
   @Field()
   gasprice!: number
+
+  @Field()
+  gasbase!: number
+
+  @Field()
+  deprovision!: boolean
 
   @Field()
   initialTxHash!: string

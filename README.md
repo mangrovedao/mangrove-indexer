@@ -1,4 +1,4 @@
-# Mangrove Offchain Server
+# Mangrove indexer
 
 Creates offchain index of [mangrove.exchange](https://mangrove.exchange/) and provides GraphQL endpoint.
 
