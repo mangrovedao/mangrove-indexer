@@ -263,7 +263,7 @@ describe("Kandel Events Logic Integration test suite", () => {
                 const kandelEventCount = await prisma.kandelEvent.count()
                 const newKandelEventCount = await prisma.newKandelEvent.count()
                 await kandelEventsLogic.handleKandelCreated(false, chainId, event, tx);
-                assert.strictEqual(await prisma.account.count() - accountCount, hasReserve ? 2 : 1)
+                assert.strictEqual(await prisma.account.count() - accountCount, hasReserve ? 3 : 2)
                 assert.strictEqual(await prisma.kandel.count() - kandelCount, 1)
                 assert.strictEqual(await prisma.kandelVersion.count() - kandeVersionCount, 1)
                 assert.strictEqual(await prisma.kandelConfiguration.count() -kandelConfigCount , 1)
