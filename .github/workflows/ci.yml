@@ -34,7 +34,7 @@ jobs:
     if: always()
 
     needs:
-    - quick-check
+    - buildAndTest
 
     runs-on: ubuntu-latest
 
