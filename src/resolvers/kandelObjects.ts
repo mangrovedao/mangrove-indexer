@@ -1,6 +1,6 @@
 import { Token } from "@generated/type-graphql";
 import { Field, InputType, ObjectType } from "type-graphql";
-
+import { Transaction } from "@prisma/client";
 
 @InputType()
 export class Rate{
@@ -155,7 +155,8 @@ export class KandelFill {
     quote: Token,
     offerType: string,
     price: number,
-    date: Date
+    date: Date,
+    txHash: string
 } ){
     this.baseAmount = params.baseAmount;
     this.quoteAmount = params.quoteAmount;
@@ -164,6 +165,7 @@ export class KandelFill {
     this.date = params.date;
     this.offerType = params.offerType;
     this.price = params.price;
+    this.txHash = params.txHash;
   }
   
   @Field()
@@ -187,9 +189,9 @@ export class KandelFill {
   @Field()
   price!: number
 
-  // Cannot give buy/sell
-  // Cannot give base/quote (market)
-  // Cannot give price
+  @Field()
+  txHash!: string
+
 }
 
 
@@ -197,43 +199,38 @@ export class KandelFill {
 export class KandelFailedOffer {
 
   constructor( params:{
-    takerGave: string;
-    takerGot: string;
-    order: {
-        tx: {
-            time: Date;
-        };
-        offerListing: {
-            inboundToken: Token;
-            outboundToken: Token;
-        };
-    };
+    base: Token,
+    quote: Token,
+    baseAmount: number,
+    quoteAmount: number,
+    date: Date,
+    txHash: string
 } ){
-    this.date = params.order.tx.time;
-    this.inboundAmount = params.takerGave;
-    this.outboundAmount = params.takerGot;
-    this.inbound = params.order.offerListing.inboundToken;
-    this.outbound = params.order.offerListing.outboundToken;
+    this.base = params.base;
+    this.quote = params.quote;
+    this.baseAmount = params.baseAmount;
+    this.quoteAmount = params.quoteAmount;
+    this.date = params.date;
+    this.txHash = params.txHash;
   }
   @Field()
   date!: Date;
 
   @Field()
-  inboundAmount!: string;
+  baseAmount!: number;
 
   @Field()
-  outboundAmount!: string;
+  quoteAmount!: number;
 
   @Field()
-  inbound!: Token
+  quote!: Token
 
   @Field()
-  outbound!: Token
+  base!: Token
 
-  // Cannot give buy/sell
-  // Cannot give base/quote (market)
-  // Cannot give price
-  // Cannot give bounty / penalty
+  @Field()
+  txHash!: string
+
 }
 
 
@@ -246,11 +243,13 @@ export class KandelDepositWithdraw {
     currency: Token;
     date: Date;
     event: "deposit" | "withdraw"; 
+    txHash: string;
 }){
     this.currency = params.currency;
     this.valueReceived = params.valueReceived;
     this.date = params.date;
     this.event = params.event;
+    this.txHash = params.txHash;
   }
 
   @Field()
@@ -260,14 +259,14 @@ export class KandelDepositWithdraw {
   event!: "deposit" | "withdraw";
 
   @Field()
-  currency!: Token; // Is currency and value Recevied the same token?
+  currency!: Token; 
 
   @Field()
   valueReceived!: number
 
+  @Field()
+  txHash!: string
 
-  // Cannot give price
-  // Cannot give gas
 }
 
 @ObjectType()
@@ -275,18 +274,17 @@ export class KandelParameter {
 
   constructor(params: {
     event: {
-            tx: {
-                time: Date | undefined;
-            };
+            tx: Transaction | undefined;
             prevVersion:  string | undefined;
     };
     value: string;
     type: "admin" | "compoundRateBase" | "compoundRateQuote" | "gasReq" | "gasPrice" | "spread" | "ratio" | "length" | "router";
   }){
-    this.date = params.event.tx.time;
+    this.date = params.event.tx?.time;
     this.parameter = params.type;
     this.previousValue = params.event.prevVersion
     this.newValue = params.value
+    this.txHash = params.event.tx?.txHash
   }
   @Field()
   date?: Date;
@@ -300,7 +298,9 @@ export class KandelParameter {
   @Field()
   newValue!: string
 
-  // Cannot give gas
+  @Field()
+  txHash?: string
+
 }
 
 @ObjectType()
@@ -344,5 +344,4 @@ export class KandelPopulateRetract {
   @Field()
   txHash!: string
 
-  // Cannot give gas
 }

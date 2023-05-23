@@ -518,7 +518,7 @@ export class KandelHomePageResolver {
       quote: kandel.quoteToken,
       return: await kandelReturnUtils.getKandelReturn(new KandelId(chainId, kandel.strat.address), ctx.prisma, (token) => fetchTokenPriceIn(rates, token )),
       type: kandel.type,
-      offers: kandel.strat.offers.map(offer => new KandelOffer({
+      offers: kandel.strat.offers.map( offer => new KandelOffer({
         gives: offer.currentVersion?.givesNumber ?? 0,
         wants: offer.currentVersion?.wantsNumber ?? 0,
         index: offer.kandelOfferIndexes?.index ?? 0,
@@ -603,6 +603,7 @@ export class KandelHistoryResolver {
       date: v.order.tx.time,
       price: v.offerVersion.offer.kandelOfferIndexes ? (v.offerVersion.offer.kandelOfferIndexes.ba == "ask" ? v.takerPaidPrice ?? 0 : v.makerPaidPrice ?? 0 ) : 0,
       offerType: v.offerVersion.offer.kandelOfferIndexes ? (v.offerVersion.offer.kandelOfferIndexes.ba == "ask" ? "asks" : "bids" ) : "",
+      txHash: v.order.tx.txHash,
     }));
   }
 
@@ -619,6 +620,7 @@ export class KandelHistoryResolver {
     }
     const chainId = new ChainId(chain);
     const kandelId = new KandelId(chainId, address);
+    const kandel = await ctx.prisma.kandel.findUnique({ where: { id: kandelId.value }, include: { baseToken:true, quoteToken:true} });
     const failedOffer = await ctx.prisma.takenOffer.findMany({
       skip, take,
       where: {
@@ -630,18 +632,12 @@ export class KandelHistoryResolver {
         OR: [
           { NOT: { failReason: null } }, { posthookFailed: true }]
       },
-      select: {
-        takerGave: true,
-        takerGot: true,
+      include: {
         order: {
-          select: {
-            tx: {
-              select: {
-                time: true
-              }
-            },
+          include: {
+            tx: true,
             offerListing: {
-              select: {
+              include: {
                 inboundToken: true,
                 outboundToken: true
               }
@@ -651,7 +647,14 @@ export class KandelHistoryResolver {
       },
       orderBy: { order: { tx: { time: 'desc' } } }
     });
-    return failedOffer.map(v => new KandelFailedOffer(v));
+    return failedOffer.map(v => new KandelFailedOffer({
+      base: kandel!.baseToken,
+      quote: kandel!.quoteToken,
+      baseAmount: v.order.offerListing.inboundToken.id == kandel?.baseId ? v.takerGaveNumber : v.takerGotNumber,
+      quoteAmount: v.order.offerListing.outboundToken.id == kandel?.quoteId ? v.takerGotNumber : v.takerGaveNumber,
+      date: v.order.tx.time,
+      txHash: v.order.tx.txHash,
+    }));
   }
 
 
@@ -677,19 +680,15 @@ export class KandelHistoryResolver {
         ]
       },
       include: {
+        
         TokenBalanceDepositEvent: {
-          select: {
-            value: true,
+          include: {
             tokenBalanceEvent: {
-              select: {
+              include: {
                 token: true,
                 tokenBalanceVersion: {
-                  select: {
-                    tx: {
-                      select: {
-                        time: true
-                      }
-                    }
+                  include: {
+                    tx: true
                   }
                 }
               }
@@ -697,18 +696,13 @@ export class KandelHistoryResolver {
           }
         },
         TokenBalanceWithdrawalEvent: {
-          select: {
-            value: true,
+          include: {
             tokenBalanceEvent: {
-              select: {
-                token: true,
+              include: {
+                token:true,
                 tokenBalanceVersion: {
-                  select: {
-                    tx: {
-                      select: {
-                        time: true
-                      }
-                    }
+                  include: {
+                    tx: true
                   }
                 }
               }
@@ -730,7 +724,8 @@ export class KandelHistoryResolver {
         valueReceived: event ? fromBigNumber( { value: event.value , token: event.tokenBalanceEvent.token }) : 0,
         currency: event!.tokenBalanceEvent.token,
         date: event!.tokenBalanceEvent.tokenBalanceVersion.tx.time,
-        event: v.TokenBalanceDepositEvent ? "deposit" : "withdraw"
+        event: v.TokenBalanceDepositEvent ? "deposit" : "withdraw",
+        txHash: event!.tokenBalanceEvent.tokenBalanceVersion.tx.txHash
        });
     });
     return toReturn;
@@ -766,23 +761,24 @@ export class KandelHistoryResolver {
       take, skip
     })
 
-    return paramEvents.map(event => {
+    return paramEvents.reduce((result, event) => {
       if (event.KandelAdminEvent) {
-        return new KandelParameter({ event: { tx: { time: event.KandelVersion?.tx.time }, prevVersion: JSON.stringify({ value: event.KandelVersion?.prevVersion?.admin.address }) }, type: "admin", value: JSON.stringify(({ value: event.KandelAdminEvent.admin })) })
+        return [...result, new KandelParameter({ event: { tx: event.KandelVersion?.tx, prevVersion: JSON.stringify({ value: event.KandelVersion?.prevVersion?.admin.address }) }, type: "admin", value: JSON.stringify(({ value: event.KandelAdminEvent.admin })) }) ]
       } else if (event.KandelGasReqEvent) {
-        return new KandelParameter({ event: { tx: { time: event.KandelVersion?.tx.time }, prevVersion: JSON.stringify({ value: event.KandelVersion?.prevVersion?.configuration.gasReq }) }, type: "gasReq", value: JSON.stringify({ value: event.KandelGasReqEvent.gasReq }) })
+        return [...result, new KandelParameter({ event: { tx: event.KandelVersion?.tx, prevVersion: JSON.stringify({ value: event.KandelVersion?.prevVersion?.configuration.gasReq }) }, type: "gasReq", value: JSON.stringify({ value: event.KandelGasReqEvent.gasReq }) }) ]
       } else if (event.KandelLengthEvent) {
-        return new KandelParameter({ event: { tx: { time: event.KandelVersion?.tx.time }, prevVersion: JSON.stringify({ value: event.KandelVersion?.prevVersion?.configuration.length.toString() }) }, type: "length", value: JSON.stringify({ value: event.KandelLengthEvent.length.toString() }) })
+        return [...result, new KandelParameter({ event: { tx: event.KandelVersion?.tx, prevVersion: JSON.stringify({ value: event.KandelVersion?.prevVersion?.configuration.length.toString() }) }, type: "length", value: JSON.stringify({ value: event.KandelLengthEvent.length.toString() }) }) ]
       } else if (event.KandelRouterEvent) {
-        return new KandelParameter({ event: { tx: { time: event.KandelVersion?.tx.time }, prevVersion: JSON.stringify({ value: event.KandelVersion?.prevVersion?.routerAddress }) }, type: "router", value: JSON.stringify({ value: event.KandelRouterEvent.router }) });
+        return [...result, new KandelParameter({ event: { tx: event.KandelVersion?.tx, prevVersion: JSON.stringify({ value: event.KandelVersion?.prevVersion?.routerAddress }) }, type: "router", value: JSON.stringify({ value: event.KandelRouterEvent.router }) }) ];
       } else if (event.gasPriceEvent) {
-        return new KandelParameter({ event: { tx: { time: event.KandelVersion?.tx.time }, prevVersion: JSON.stringify({ value: event.KandelVersion?.prevVersion?.configuration.gasPrice }) }, type: "gasPrice", value: JSON.stringify({ value: event.gasPriceEvent.gasPrice }) });
+        return [...result, new KandelParameter({ event: { tx: event.KandelVersion?.tx, prevVersion: JSON.stringify({ value: event.KandelVersion?.prevVersion?.configuration.gasPrice }) }, type: "gasPrice", value: JSON.stringify({ value: event.gasPriceEvent.gasPrice }) }) ];
       } else if (event.compoundRateEvent) {
-        return new KandelParameter({ event: { tx: { time: event.KandelVersion?.tx.time }, prevVersion: JSON.stringify({ value: { base: event.KandelVersion?.prevVersion?.configuration.compoundRateBase.toString(), quote: event.KandelVersion?.prevVersion?.configuration.compoundRateQuote.toString() } }) }, type: "compoundRateBase", value: JSON.stringify({ value: { base: event.compoundRateEvent.compoundRateBase.toString(), quote: event.compoundRateEvent.compoundRateQuote.toString() } }) })
+        return [...result, new KandelParameter({ event: { tx: event.KandelVersion?.tx, prevVersion: JSON.stringify({ value: { base: event.KandelVersion?.prevVersion?.configuration.compoundRateBase.toString(), quote: event.KandelVersion?.prevVersion?.configuration.compoundRateQuote.toString() } }) }, type: "compoundRateBase", value: JSON.stringify({ value: { base: event.compoundRateEvent.compoundRateBase.toString(), quote: event.compoundRateEvent.compoundRateQuote.toString() } }) }) ]
       } else if (event.KandelGeometricParamsEvent) {
-        return new KandelParameter({ event: { tx: { time: event.KandelVersion?.tx.time }, prevVersion: JSON.stringify({ value: { ratio: event.KandelVersion?.prevVersion?.configuration.ratio.toString(), spread: event.KandelVersion?.prevVersion?.configuration.spread.toString() } }) }, type: "ratio", value: JSON.stringify({ value: { ratio: event.KandelGeometricParamsEvent.ratio.toString(), spread: event.KandelGeometricParamsEvent.spread.toString() } }) })
+        return [...result, new KandelParameter({ event: { tx: event.KandelVersion?.tx, prevVersion: JSON.stringify({ value: { ratio: event.KandelVersion?.prevVersion?.configuration.ratio.toString(), spread: event.KandelVersion?.prevVersion?.configuration.spread.toString() } }) }, type: "ratio", value: JSON.stringify({ value: { ratio: event.KandelGeometricParamsEvent.ratio.toString(), spread: event.KandelGeometricParamsEvent.spread.toString() } }) }) ]
       }
-    }).filter(v => v == undefined ? false : true) as KandelParameter[];
+      return result;
+    }, [] as KandelParameter[]);
 
 
   }
@@ -822,22 +818,22 @@ export class KandelHistoryResolver {
     })
 
 
-    const retractsAndPopulates = kandel?.KandelEvent.map(v => {
-      if (v.KandelPopulateEvent || v.KandelRetractEvent) {
-        const e = (v.KandelPopulateEvent ? v.KandelPopulateEvent : v.KandelRetractEvent)
-          return new KandelPopulateRetract({
+    const retractsAndPopulates = kandel?.KandelEvent.reduce((result, current) => {
+      if (current.KandelPopulateEvent || current.KandelRetractEvent) {
+        const e = (current.KandelPopulateEvent ? current.KandelPopulateEvent : current.KandelRetractEvent)
+          return [...result, new KandelPopulateRetract({
           base: kandel.baseToken,
           baseAmount: this.getPopulateRetractOfferAmount(e?.KandelOfferUpdate, kandel.baseToken),
           quote: kandel.quoteToken,
           quoteAmount: this.getPopulateRetractOfferAmount(e?.KandelOfferUpdate, kandel.quoteToken),
-          date: v.transaction.time,
-          event: v.KandelPopulateEvent ? "populate" : "retract",
-          txHash: v.transaction.txHash,
-        })
+          date: current.transaction.time,
+          event: current.KandelPopulateEvent ? "populate" : "retract",
+          txHash: current.transaction.txHash,
+        }) ]
       }
-    });
-
-    return  retractsAndPopulates?.filter(v => v == undefined ? false : true) as KandelPopulateRetract[] ?? [];
+      return result;
+    }, [] as KandelPopulateRetract[] );
+    return  retractsAndPopulates ?? [];
   }
 
 
