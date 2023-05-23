@@ -1,6 +1,17 @@
 import { Token } from "@generated/type-graphql";
-import { Field, ObjectType } from "type-graphql";
+import { Field, InputType, ObjectType } from "type-graphql";
 
+
+@InputType()
+export class Rate{
+
+  @Field()
+  tokenAddress!: string
+
+  @Field()
+  rate!: number
+
+}
 
 @ObjectType()
 export class KandelOffer{
