@@ -49,11 +49,12 @@ export class MgvOracleOperations extends DbOperations {
         if (params.updateFunc) {
             params.updateFunc(newVersion);
         }
-        await this.tx.mangroveOracle.upsert(
+        const newMgvOracle =await this.tx.mangroveOracle.upsert(
             toNewVersionUpsert(mgvOracle, newVersion.id)
         );
 
-        await this.tx.mangroveOracleVersion.create({ data: newVersion });
+        const newMgvOracleVersion = await this.tx.mangroveOracleVersion.create({ data: newVersion });
+        return { mgvOracle: newMgvOracle, mgvOracleVersion: newMgvOracleVersion };
     }
 
     async deleteLastVersionedMgvOracle(mgvOracleId: MgvOracleId) {
@@ -93,7 +94,7 @@ export class MgvOracleOperations extends DbOperations {
         }
     }
 
-    private async getCurrentMgvOracleVersion(mgvOracle: prisma.MangroveOracle): Promise<prisma.MangroveOracleVersion> {
+    async getCurrentMgvOracleVersion(mgvOracle: { currentVersionId: string} ): Promise<prisma.MangroveOracleVersion> {
         const currentVersion = await this.tx.mangroveOracleVersion.findUnique({
             where: { id: mgvOracle.currentVersionId },
         });
