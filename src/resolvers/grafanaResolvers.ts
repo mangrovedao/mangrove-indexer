@@ -39,7 +39,7 @@ export class GrafanaResolver {
             return acc
         }, [] as { token1: Token, token2: Token }[])
 
-        return uniqueOfferListings?.map(v => new GrafanData({ data: `{ \"token1\": ${v.token1.address}, \"token2\": ${v.token2.address} }` } ) ) ?? [];
+        return uniqueOfferListings?.map(v => new GrafanData({ data: `{ \"token1\": \"${v.token1.address}\", \"token2\": \"${v.token2.address}\" }` } ) ) ?? [];
 
     }
 
