@@ -1,11 +1,10 @@
-import { KandelConfiguration, KandelVersion, OfferVersion, TokenBalanceVersion, Transaction } from "@prisma/client";
+import { KandelVersion, OfferVersion, TokenBalanceVersion, Transaction } from "@prisma/client";
+import { Credit, Debit, NewKandel, Populate, Retract, SetIndexMapping, SetParams } from "@proximaone/stream-schema-mangrove/dist/kandel";
 import assert from "assert";
-import c from "config";
 import { before, describe } from "mocha";
 import { allDbOperations } from "src/state/dbOperations/allDbOperations";
 import { KandelEventsLogic } from "src/state/handlers/stratsHandler/kandelEventsLogic";
 import { AccountId, ChainId, KandelId, KandelVersionId, MangroveId, MangroveVersionId, OfferId, OfferListKey, OfferListingId, OfferListingVersionId, OfferVersionId, TokenBalanceId, TokenBalanceVersionId, TokenId } from "src/state/model";
-import { Credit, Debit, KandelEvent, NewKandel, Populate, Retract, SetIndexMapping, SetParams } from "@proximaone/stream-schema-mangrove/dist/kandel";
 import { prisma } from "utils/test/mochaHooks";
 
 

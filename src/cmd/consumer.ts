@@ -13,6 +13,7 @@ import {
   IOrderLogicEventHandler as MangroveOrderEventHandler,
   TokenEventHandler,
 } from "src/state";
+import { MangroveOracleEventHandler } from "src/state/handlers/mgvOracleHandler/mangroveOracleEventHandler";
 import { ChainId } from "src/state/model";
 import { StreamEventHandler } from "src/utils/common";
 import { ChainConfig } from "src/utils/config/ChainConfig";
@@ -32,7 +33,7 @@ const streamClient = new ProximaStreamClient();
 let stopped = false;
 let subscription: Subscription;
 
-type streamType = "token" | "mangrove" | "mangroveOrder" | "kandel";
+type streamType = "token" | "mangrove" | "mangroveOrder" | "kandel" | "mgvOracle";
 
 type streamLink = {
   handler: StreamEventHandler, 
@@ -54,6 +55,7 @@ async function main() {
     const mangrovePreloads: streamLink[] = [];
     const mangroveOrderPreloads: streamLink[] = [];
     const kandelPreloads: streamLink[] = [];
+    const mgvOraclePreloads: streamLink[] = [];
 
     const tokenStreams = chain.streams.tokens ?? [];
     for (const tokenStream of tokenStreams) {
@@ -61,7 +63,6 @@ async function main() {
       if (lastOffset){
         tokenPreloads.push({handler: new TokenEventHandler(prisma, tokenStream, chainId), type: "token", toHeight: lastOffset.height });
       }
-
     }
 
     const mangroveStreams = chain.streams.mangrove ?? [];
@@ -69,7 +70,13 @@ async function main() {
       const lastOffset = await getStreamLastOffset(mangroveStream);
       if (lastOffset)
         mangrovePreloads.push({handler: new MangroveEventHandler(prisma, mangroveStream, chainId), type: "mangrove", toHeight: lastOffset.height });
+    }
 
+    const mgvOracleStreams = chain.streams.mgvOracle ?? [];
+    for (const mgvOracleStream of mgvOracleStreams) {
+      const lastOffset = await getStreamLastOffset(mgvOracleStream);
+      if (lastOffset)
+        mgvOraclePreloads.push({handler: new MangroveOracleEventHandler(prisma, mgvOracleStream, chainId), type: "mgvOracle", toHeight: lastOffset.height });
     }
 
     const mangroveOrderStreams = chain.streams.strats ?? [];
@@ -82,7 +89,7 @@ async function main() {
       kandelPreloads.push({handler: new KandelEventHandler(prisma, kandelStream, chainId), type: "kandel"})
     }
 
-    streamLinks.push( { stream: tokenPreloads, then: [{ stream: mangrovePreloads, then: [{stream: [...mangroveOrderPreloads, ...kandelPreloads] }] }] } )
+    streamLinks.push( { stream: tokenPreloads, then: [{ stream: [...mangrovePreloads, ...mgvOraclePreloads], then: [{stream: [...mangroveOrderPreloads, ...kandelPreloads] }] }] } )
   }
 
   await Promise.all( 
