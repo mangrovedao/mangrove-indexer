@@ -7,7 +7,8 @@
         "mangrove": [ "proxima.mangrove.polygon-mumbai.0xd180.domain-events.0_1"],
         "strats": [ "proxima.mangrove.polygon-mumbai.0xd180.0x756f.strategies.0_1" ],
         "kandel": [ "proxima.mangrove.polygon-mumbai.0xd180.kandel.0_1" ],
-        "tokens": [ "proxima.mangrove.polygon-mumbai.0xd180.tokens.0_1" ]
+        "tokens": [ "proxima.mangrove.polygon-mumbai.0xd180.tokens.0_1" ],
+        "mgvOracle": [ "contracts.mangrove.mangrove-oracle.polygon-mumbai.logs.0_1" ]
       }
     }
   ]

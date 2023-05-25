@@ -25,6 +25,7 @@ model Chain {
   accounts     Account[]
   mangroves    Mangrove[]
   tokens       Token[]
+  mgvOracle    MangroveOracle[]
 }
 
 model Transaction {
@@ -50,6 +51,7 @@ model Transaction {
   TokenBalanceVersion   TokenBalanceVersion[]
   KandelEvent           KandelEvent[]
   MangroveEvent         MangroveEvent[]
+  MangroveOracleVersion MangroveOracleVersion[]
 
   @@unique([chainId, txHash])
 }
@@ -94,6 +96,40 @@ model Mangrove {
   MangroveEvent    MangroveEvent[]
 
   @@unique([chainId, address])
+}
+
+model MangroveOracle {
+  id      String @id @db.VarChar(255)
+  chainId Int    @default(-1)
+  address String @db.VarChar(80)
+
+  chain                  Chain                   @relation(fields: [chainId], references: [id])
+  currentVersionId       String @unique
+  currentVersion         MangroveOracleVersion   @relation("currentVersion", fields: [currentVersionId], references: [id])
+  mangroveOracleVersions MangroveOracleVersion[] @relation("mangroveOracleVersion")
+
+  @@unique([chainId, address])
+  @@index([chainId])
+}
+
+model MangroveOracleVersion {
+  id       String @id @db.VarChar(255)
+  oracleId String @db.VarChar(255)
+  txId     String @db.VarChar(255)
+  gasprice String
+  density  String
+
+  tx Transaction @relation(fields: [txId], references: [id])
+
+  versionNumber       Int
+  prevVersionId String?                @unique
+  prevVersion         MangroveOracleVersion? @relation("prevVersion", fields: [prevVersionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  nextVersion         MangroveOracleVersion? @relation("prevVersion")
+  currentVersion      MangroveOracle?        @relation("currentVersion")
+  mangroveOracle      MangroveOracle         @relation("mangroveOracleVersion", fields: [oracleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([oracleId, versionNumber])
+  @@index([txId])
 }
 
 model MangroveVersion {
@@ -162,10 +198,10 @@ model OfferWriteEvent {
 }
 
 model OfferRetractEvent {
-  id              String @id @default(uuid())
+  id              String  @id @default(uuid())
   offerListingId  String
-  offerVersionId  String @unique
-  mangroveEventId String @unique
+  offerVersionId  String  @unique
+  mangroveEventId String  @unique
   deprovision     Boolean
 
   offerListing  OfferListing  @relation(fields: [offerListingId], references: [id])
