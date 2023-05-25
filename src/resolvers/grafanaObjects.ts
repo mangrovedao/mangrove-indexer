@@ -1,4 +1,24 @@
+import { Token } from "@generated/type-graphql";
 import { Field, ObjectType } from "type-graphql";
+
+@ObjectType()
+export class Market{
+
+    constructor(params: {
+        token1: Token,
+        token2: Token
+    }) {
+        this.token1 = params.token1
+        this.token2 = params.token2
+    }
+
+
+    @Field()
+    token1!: Token
+
+    @Field()
+    token2!: Token
+}
 
 @ObjectType()
 export class OfferList {
