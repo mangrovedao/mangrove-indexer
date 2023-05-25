@@ -1,6 +1,6 @@
 import { Offer, OfferListing, OfferListingVersion, OfferVersion, PrismaClient, Token } from "@prisma/client";
 import { Arg, Ctx, Query, Resolver } from "type-graphql";
-import { Market, MarketInfo, OfferList } from "./grafanaObjects";
+import { GrafanData, MarketInfo, OfferList } from "./grafanaObjects";
 
 
 type Context = {
@@ -11,11 +11,11 @@ type Context = {
 @Resolver()
 export class GrafanaResolver {
 
-    @Query(() => [Market])
+    @Query(() => [GrafanData])
     async markets(
         @Arg("mangrove") mangrove: string,
         @Ctx() ctx: Context
-    ): Promise<Market[]> {
+    ): Promise<GrafanData[]> {
         const offerListings =  (await ctx.prisma.mangrove.findFirst({
             where: { address: mangrove },
             include: {
@@ -39,10 +39,7 @@ export class GrafanaResolver {
             return acc
         }, [] as { token1: Token, token2: Token }[])
 
-        return uniqueOfferListings?.map((pair) => new Market({
-            token1: pair.token1,
-            token2: pair.token2
-        })) ?? []
+        return uniqueOfferListings?.map(v => new GrafanData({ data: JSON.stringify(v) }) ) ?? []
     }
 
 
