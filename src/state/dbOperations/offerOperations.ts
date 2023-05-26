@@ -112,13 +112,20 @@ export class OfferOperations extends DbOperations {
   }
 
   public async deleteLatestOfferVersion(id: OfferId) {
-    const offer = await this.tx.offer.findUnique({ where: { id: id.value } });
+    const offer = await this.tx.offer.findUnique({ where: { id: id.value }, include: { currentVersion: { include: { OfferWriteEvent: true, OfferRetractEvent:  true}} } });
     if (offer === null) throw Error(`Offer not found - id: ${id.value}`);
 
-    const version = await this.tx.offerVersion.findUnique({
-      where: { id: offer.currentVersionId },
-    });
+    const version = offer.currentVersion;
     if (version === null) throw Error(`OfferVersion not found - id: ${id.value}, currentVersionId: ${offer.currentVersionId}`);
+
+    if( version.OfferWriteEvent){
+      await this.tx.mangroveEvent.delete({ where: { id: version.OfferWriteEvent.mangroveEventId } });
+    }
+
+    if( version.OfferRetractEvent){
+      await this.tx.mangroveEvent.delete({ where: { id: version.OfferRetractEvent.mangroveEventId } });
+    }
+
 
     
     if (version.prevVersionId === null) {

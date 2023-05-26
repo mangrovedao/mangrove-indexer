@@ -374,7 +374,7 @@ export class KandelOperations extends DbOperations {
     if( !offerVersion) {
       const retractEvent = await this.tx.kandelRetractEvent.findUnique({where: { id:id}});
       if( !retractEvent) {
-        throw new Error( `Cannot fund retract event to delete: id: ${id}`)
+        throw new Error( `Cannot find retract event to delete: id: ${id}`)
       }
       await this.tx.kandelEvent.delete({where: { id: retractEvent?.eventId}});
     }
@@ -385,7 +385,7 @@ export class KandelOperations extends DbOperations {
     if( !offerVersion) {
       const populateEvent = await this.tx.kandelPopulateEvent.findUnique({where: { id:id}});
       if( !populateEvent) {
-        throw new Error( `Cannot fund populate event to delete: id: ${id}`)
+        throw new Error( `Cannot find populate event to delete: id: ${id}`)
       }
       await this.tx.kandelEvent.delete({where: { id: populateEvent?.eventId}});
     }
