@@ -235,12 +235,14 @@ describe("Offer Operations Integration test suite", () => {
           offerVersionId: offerVersion.id,
           offerListingId: offerListingId.value,
           mangroveEventId: mangroveEvent.id,
+          deprovision: false,
         }
       })
       await offerOperations.deleteLatestOfferVersion(offerId);
       assert.strictEqual(await prisma.offer.count(), 1);
       assert.strictEqual(await prisma.offerVersion.count(), 1);
       assert.strictEqual(await prisma.offerRetractEvent.count(), 0);
+      assert.strictEqual(await prisma.mangroveEvent.count(), 0);
       const offer = await prisma.offer.findUnique({where: { id: offerId.value}});
       assert.strictEqual(offer?.currentVersionId, offerVersionId.value);
     });

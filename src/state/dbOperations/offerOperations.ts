@@ -119,11 +119,11 @@ export class OfferOperations extends DbOperations {
     if (version === null) throw Error(`OfferVersion not found - id: ${id.value}, currentVersionId: ${offer.currentVersionId}`);
 
     if( version.OfferWriteEvent){
-      await this.tx.offerWriteEvent.delete({ where: { id: version.OfferWriteEvent.id } });
+      await this.tx.mangroveEvent.delete({ where: { id: version.OfferWriteEvent.mangroveEventId } });
     }
 
     if( version.OfferRetractEvent){
-      await this.tx.offerRetractEvent.delete({ where: { id: version.OfferRetractEvent.id } });
+      await this.tx.mangroveEvent.delete({ where: { id: version.OfferRetractEvent.mangroveEventId } });
     }
 
 
