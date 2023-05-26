@@ -3,10 +3,12 @@ import * as _ from "lodash";
 import { AccountId, OfferId, OfferListingId, OfferVersionId } from "src/state/model";
 import { DbOperations, toNewVersionUpsert } from "./dbOperations";
 import { KandelOperations } from "./kandelOperations";
+import { OfferListingOperations } from "./offerListingOperations";
 
 export class OfferOperations extends DbOperations {
 
   kandelOperations = new KandelOperations(this.tx);
+  offerListingOperations = new OfferListingOperations(this.tx);
 
   public async getOffer(id: OfferId){
     return await this.tx.offer.findUnique({ where: { id: id.value } });
@@ -26,6 +28,8 @@ export class OfferOperations extends DbOperations {
   ) {
     let offer:prisma.Offer|null = (await this.getOffer(id));
     let newVersion:prisma.OfferVersion;
+    const offerListingId = new OfferListingId(id.mangroveId, id.offerListKey);
+    const currentOfferListingVersion = await this.offerListingOperations.getCurrentOfferListVersion(offerListingId)
     if (offer === null) {
       if(!initial){
         throw new Error( `Can't create Offer without initial values for creation: ${id.value}`);
@@ -34,7 +38,7 @@ export class OfferOperations extends DbOperations {
       offer = {
         id: id.value,
         mangroveId: id.mangroveId.value,
-        offerListingId: new OfferListingId( id.mangroveId, id.offerListKey).value,
+        offerListingId: offerListingId.value,
         offerNumber: id.offerNumber,
         makerId: initial.makerId.value,
         currentVersionId: newVersionId.value
@@ -60,7 +64,8 @@ export class OfferOperations extends DbOperations {
         deprovisioned: false,
         isRetracted: false,
         versionNumber: 0,
-        prevVersionId: null
+        prevVersionId: null,
+        offerListingVersionId: currentOfferListingVersion.id
       }
     }
     else {
@@ -74,6 +79,7 @@ export class OfferOperations extends DbOperations {
         txId: txId,
         versionNumber: newVersionNumber,
         prevVersionId: oldVersion.id,
+        offerListingVersionId: currentOfferListingVersion.id
       });
 
     }
@@ -106,13 +112,20 @@ export class OfferOperations extends DbOperations {
   }
 
   public async deleteLatestOfferVersion(id: OfferId) {
-    const offer = await this.tx.offer.findUnique({ where: { id: id.value } });
+    const offer = await this.tx.offer.findUnique({ where: { id: id.value }, include: { currentVersion: { include: { OfferWriteEvent: true, OfferRetractEvent:  true}} } });
     if (offer === null) throw Error(`Offer not found - id: ${id.value}`);
 
-    const version = await this.tx.offerVersion.findUnique({
-      where: { id: offer.currentVersionId },
-    });
+    const version = offer.currentVersion;
     if (version === null) throw Error(`OfferVersion not found - id: ${id.value}, currentVersionId: ${offer.currentVersionId}`);
+
+    if( version.OfferWriteEvent){
+      await this.tx.mangroveEvent.delete({ where: { id: version.OfferWriteEvent.mangroveEventId } });
+    }
+
+    if( version.OfferRetractEvent){
+      await this.tx.mangroveEvent.delete({ where: { id: version.OfferRetractEvent.mangroveEventId } });
+    }
+
 
     
     if (version.prevVersionId === null) {

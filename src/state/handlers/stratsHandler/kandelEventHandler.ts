@@ -1,24 +1,24 @@
 import { PrismaClient } from "@prisma/client";
-import {
-  PrismaStreamEventHandler,
-  PrismaTransaction,
-  TypedEvent,
-} from "src/utils/common";
 import { AllDbOperations, allDbOperations } from "src/state/dbOperations/allDbOperations";
 import {
   ChainId,
   KandelId,
   TransactionId
 } from "src/state/model";
+import {
+  PrismaStreamEventHandler,
+  PrismaTransaction,
+  TypedEvent,
+} from "src/utils/common";
 // import {KandelEvent, SeederEvent} from "@proximaone/stream-schema-mangrove/dist/kandel"
-import { createPatternMatcher } from "src/utils/discriminatedUnion";
-import { KandelEventsLogic } from "./kandelEventsLogic";
-import * as kandel from "@proximaone/stream-schema-mangrove/dist/kandel";
-import * as mangroveSchema from "@proximaone/stream-schema-mangrove";
 import { sleep } from "@mangrovedao/commonlib.js";
 import { Timestamp } from "@proximaone/stream-client-js";
+import * as mangroveSchema from "@proximaone/stream-schema-mangrove";
+import * as kandel from "@proximaone/stream-schema-mangrove/dist/kandel";
+import { createPatternMatcher } from "src/utils/discriminatedUnion";
+import { KandelEventsLogic } from "./kandelEventsLogic";
 
-export class IKandelLogicEventHandler extends PrismaStreamEventHandler<kandel.KandelEvent | kandel.SeederEvent > {
+export class IKandelLogicEventHandler extends PrismaStreamEventHandler<kandel.KandelEvent  > {
   public constructor(
     prisma: PrismaClient,
     stream: string,
@@ -28,7 +28,7 @@ export class IKandelLogicEventHandler extends PrismaStreamEventHandler<kandel.Ka
   }
 
   protected async handleParsedEvents(
-    events: TypedEvent<kandel.KandelEvent | kandel.SeederEvent >[],
+    events: TypedEvent<kandel.KandelEvent  >[],
     tx: PrismaTransaction
   ): Promise<void> {
     const allDbOperation = allDbOperations(tx);
@@ -41,8 +41,7 @@ export class IKandelLogicEventHandler extends PrismaStreamEventHandler<kandel.Ka
       const txRef = payload.tx;
       const txId = new TransactionId(chainId, txRef.txHash);
 
-      await waitForTimestamp(allDbOperation, timestamp);
-      const transaction = await allDbOperation.transactionOperations.ensureTransaction({
+      const ensureTx = async () => await allDbOperation.transactionOperations.ensureTransaction({
         id: txId,
         txHash: txRef.txHash,
         from:  txRef.sender,
@@ -52,47 +51,63 @@ export class IKandelLogicEventHandler extends PrismaStreamEventHandler<kandel.Ka
     });
       await eventMatcher({
         NewKandel: async (e) => {
+          const transaction = await ensureTx();
           await kandelEventsLogic.handleKandelCreated(undo, chainId, e, transaction)
         },
         NewAaveKandel: async (e) => {
+          const transaction = await ensureTx();
           await kandelEventsLogic.handleKandelCreated(undo, chainId, e, transaction)
         },
         SetParams: async (e) => {
+          const transaction = await ensureTx();
           await kandelEventsLogic.handleKandelParamsUpdated(undo, new KandelId(chainId, payload.address), e, transaction);
         },
         Debit: async (e) => {
+          const transaction = await ensureTx();
           await kandelEventsLogic.handleDepositWithdrawal(undo, new KandelId(chainId, payload.address), e, transaction)
         },
         Credit: async (e) => {
+          const transaction = await ensureTx();
           await kandelEventsLogic.handleDepositWithdrawal(undo, new KandelId(chainId, payload.address), e, transaction)
         },
         Populate: async (e) => {
+          await waitForTimestamp(allDbOperation, timestamp);
+          const transaction = await ensureTx();
           await kandelEventsLogic.handlePopulate(undo, new KandelId(chainId, payload.address), e, transaction);
         },
         Retract: async (e) => {
+          await waitForTimestamp(allDbOperation, timestamp);
+          const transaction = await ensureTx();
           await kandelEventsLogic.handelRetractOffers(undo, new KandelId(chainId, payload.address), e, transaction);
+        },
+        SetIndexMapping: async (e) => {
+          await waitForTimestamp(allDbOperation, timestamp);
+          const transaction = await ensureTx();
+          await kandelEventsLogic.handleSetIndexMapping(undo, new KandelId(chainId, payload.address), e, transaction);
         }
       })(payload);
     }
   }
-//TODO: when proxima comes with stream
+
   protected deserialize( 
     payload: Buffer
-  ): kandel.KandelEvent | kandel.SeederEvent {
+  ): kandel.KandelEvent {
     return mangroveSchema.streams.kandel.serdes.deserialize(payload);
   }
 }
 
 const eventMatcher =
-  createPatternMatcher<kandel.KandelEvent | kandel.SeederEvent >();
+  createPatternMatcher<kandel.KandelEvent  >();
 
 async function waitForTimestamp(allDbOperation: AllDbOperations, timestamp:Timestamp) {
   let isReady = false;
   while (!isReady) {
-    isReady = await allDbOperation.transactionOperations.hasTransactionWithHigherTimestamp(timestamp);
-    if (!isReady) {
-      await sleep(1000);
+    isReady = await allDbOperation.transactionOperations.hasTransactionWithTimestamp(timestamp, "gt");
+    if (isReady) {
+      break;
     }
+    isReady = await allDbOperation.transactionOperations.hasTransactionWithTimestamp(timestamp, "gte");
+    await sleep(5000);
   }
 }
 

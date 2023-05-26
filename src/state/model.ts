@@ -1,4 +1,4 @@
-import { Account, Kandel, MangroveOrder, TokenBalance } from "@prisma/client";
+import { Account, Kandel, MangroveOracle, MangroveOrder, TokenBalance } from "@prisma/client";
 
 export class Id<T extends string | number> {
   public readonly value:T
@@ -199,6 +199,28 @@ export class MangroveOrderVersionId extends Id<string> {
       "mangroveOrderId" in params
         ? `${params.mangroveOrderId.value}-${params.versionNumber}`
         : `${params.mangroveOrder.id}-${params.versionNumber}`
+    );
+  }
+}
+
+export class MgvOracleId extends AccountId {
+}
+
+export class MgvOracleVersionId extends Id<string> {
+  public constructor(
+    public readonly params: (
+      | {
+        mgvOracleId: MgvOracleId;
+      }
+      | { mgvOracle: MangroveOracle }
+    ) & {
+      versionNumber: number;
+    }
+  ) {
+    super(
+      "mgvOracleId" in params
+        ? `${params.mgvOracleId.value}-${params.versionNumber}`
+        : `${params.mgvOracle.id}-${params.versionNumber}`
     );
   }
 }

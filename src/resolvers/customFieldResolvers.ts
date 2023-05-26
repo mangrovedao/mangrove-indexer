@@ -4,7 +4,7 @@ import {
   TakenOffer,
   Token
 } from "@generated/type-graphql";
-import { PrismaClient } from "@prisma/client";
+import { KandelOfferUpdate, Offer, PrismaClient } from "@prisma/client";
 import { Arg, Ctx, Query, Resolver } from "type-graphql";
 
 // At most re-fetch once per 1000 ms for each token
@@ -52,7 +52,11 @@ export class KandelManageStrategyPageResolver {
           include: {
             offers: {
               include: {
-                currentVersion: true,
+                currentVersion: {
+                  include: {
+                    OfferListingVersion: true
+                  }
+                },
                 kandelOfferIndexes: true,
                 offerVersions: {
                   where: {
@@ -74,8 +78,8 @@ export class KandelManageStrategyPageResolver {
       throw new GraphQLError(`Cannot find kandel with address: ${address} and chain: ${chain}`);
     }
     return kandel.strat.offers.map(offer => new KandelOffer({
-      gives: offer.currentVersion?.gives ?? "0",
-      wants: offer.currentVersion?.wants ?? "0",
+      gives: offer.currentVersion?.givesNumber ?? 0,
+      wants: offer.currentVersion?.wantsNumber ?? 0,
       index: offer.kandelOfferIndexes?.index ?? 0,
       base: kandel.baseToken,
       quote: kandel.quoteToken,
@@ -84,7 +88,9 @@ export class KandelManageStrategyPageResolver {
       price: (offer.kandelOfferIndexes?.ba == "ask" ? offer.currentVersion?.takerPaysPrice : offer.currentVersion?.makerPaysPrice) ?? 0,
       gasreq: offer.currentVersion?.gasreq ?? 0,
       gasprice: offer.currentVersion?.gasprice ?? 0,
-      BA: offer.kandelOfferIndexes?.ba ?? "",
+      gasbase: offer.currentVersion?.OfferListingVersion?.gasbase ?? 0,
+      offerType: offer.kandelOfferIndexes ? ( offer.kandelOfferIndexes.ba == "ask" ? "asks" : "bids" ) : "",
+      deprovision: offer.currentVersion?.deprovisioned ?? false,
       initialTxHash: offer.offerVersions[0].tx?.txHash ?? "",
     }));
 
@@ -313,15 +319,19 @@ export class MangroveOrderResolver {
       },
       include: {
         offerListing: { include: { inboundToken: true, outboundToken: true } },
-        order: true,
-        takenOffer: true
+        Order: {
+          take: 1
+        },
+        TakenOffer: {
+          take: 1
+        }
       },
       orderBy: { time: 'desc' },
       take, skip
     });
 
     return fills.map(m => {
-      const hasTakenOffer = m.takenOffer != null;
+      const hasTakenOffer = m.TakenOffer.length > 0;
       const fillsAmount = this.getFillsAmount(m.offerListing.outboundToken.address, token2, m.takerGot, m.takerGave, hasTakenOffer) ?? 0;
       const paid = this.getFillsPaid(m.offerListing.outboundToken.address, token2, m.takerGot, m.takerGave, hasTakenOffer) ?? 0;
       return new MangroveOrderFillWithTokens({
@@ -397,7 +407,11 @@ export class KandelHomePageResolver {
           include: {
             offers: {
               include: {
-                currentVersion: true,
+                currentVersion: {
+                  include: {
+                    OfferListingVersion: true
+                  }
+                },
                 kandelOfferIndexes: true,
                 offerVersions: {
                   where: {
@@ -431,9 +445,10 @@ export class KandelHomePageResolver {
         base: kandel.baseToken,
         quote: kandel.quoteToken,
         return: await kandelReturnUtils.getKandelReturn(new KandelId(chainId, kandel.strat.address), ctx.prisma, (token) => fetchTokenPriceIn(token, 'USDC')),
+        type: kandel.type,
         offers: kandel.strat.offers.map(offer => new KandelOffer({
-          gives: offer.currentVersion?.gives ?? "0",
-          wants: offer.currentVersion?.wants ?? "0",
+          gives: offer.currentVersion?.givesNumber ?? 0,
+          wants: offer.currentVersion?.wantsNumber ?? 0,
           index: offer.kandelOfferIndexes?.index ?? 0,
           base: kandel.baseToken,
           quote: kandel.quoteToken,
@@ -442,7 +457,9 @@ export class KandelHomePageResolver {
           price: (offer.kandelOfferIndexes?.ba == "ask" ? offer.currentVersion?.takerPaysPrice : offer.currentVersion?.makerPaysPrice) ?? 0,
           gasreq: offer.currentVersion?.gasreq ?? 0,
           gasprice: offer.currentVersion?.gasprice ?? 0,
-          BA: offer.kandelOfferIndexes?.ba ?? "",
+          gasbase: offer.currentVersion?.OfferListingVersion?.gasbase ?? 0,
+          deprovision: offer.currentVersion?.deprovisioned ?? false,
+          offerType: offer.kandelOfferIndexes ? ( offer.kandelOfferIndexes.ba == "ask" ? "asks" : "bids" ) : "",
           initialTxHash: offer.offerVersions[0]?.tx.txHash ?? "",
         }))
       });
@@ -466,7 +483,11 @@ export class KandelHomePageResolver {
           include: {
             offers: {
               include: {
-                currentVersion: true,
+                currentVersion: {
+                  include: {
+                    OfferListingVersion: true
+                  }
+                },
                 kandelOfferIndexes: true,
                 offerVersions: {
                   where: {
@@ -501,9 +522,10 @@ export class KandelHomePageResolver {
       base: kandel.baseToken,
       quote: kandel.quoteToken,
       return: await kandelReturnUtils.getKandelReturn(new KandelId(chainId, kandel.strat.address), ctx.prisma, (token) => fetchTokenPriceIn(token, 'USDC')),
-      offers: kandel.strat.offers.map(offer => new KandelOffer({
-        gives: offer.currentVersion?.gives ?? "0",
-        wants: offer.currentVersion?.wants ?? "0",
+      type: kandel.type,
+      offers: kandel.strat.offers.map( offer => new KandelOffer({
+        gives: offer.currentVersion?.givesNumber ?? 0,
+        wants: offer.currentVersion?.wantsNumber ?? 0,
         index: offer.kandelOfferIndexes?.index ?? 0,
         base: kandel.baseToken,
         quote: kandel.quoteToken,
@@ -512,7 +534,9 @@ export class KandelHomePageResolver {
         price: (offer.kandelOfferIndexes?.ba == "ask" ? offer.currentVersion?.takerPaysPrice : offer.currentVersion?.makerPaysPrice) ?? 0,
         gasreq: offer.currentVersion?.gasreq ?? 0,
         gasprice: offer.currentVersion?.gasprice ?? 0,
-        BA: offer.kandelOfferIndexes?.ba ?? "",
+        gasbase: offer.currentVersion?.OfferListingVersion?.gasbase ?? 0,
+        deprovision: offer.currentVersion?.deprovisioned ?? false,
+        offerType: offer.kandelOfferIndexes ? ( offer.kandelOfferIndexes.ba == "ask" ? "asks" : "bids" ) : "",
         initialTxHash: offer.offerVersions[0]?.tx.txHash ?? "",
       }))
     });
@@ -535,6 +559,7 @@ export class KandelHistoryResolver {
     }
     const chainId = new ChainId(chain);
     const kandelId = new KandelId(chainId, address);
+    const kandel = await ctx.prisma.kandel.findUnique({ where: { id: kandelId.value }, include: { baseToken:true, quoteToken:true} });
     const fills = await ctx.prisma.takenOffer.findMany({
       skip, take,
       where: {
@@ -545,18 +570,21 @@ export class KandelHistoryResolver {
         },
         failReason: null
       },
-      select: {
-        takerGave: true,
-        takerGot: true,
-        order: {
-          select: {
-            tx: {
-              select: {
-                time: true
+      include: {
+        offerVersion: {
+          include: {
+            offer: {
+              include: {
+                kandelOfferIndexes: true,
               }
-            },
+            }
+          }
+        },
+        order: {
+          include: {
+            tx: true,
             offerListing: {
-              select: {
+              include: {
                 inboundToken: true,
                 outboundToken: true
               }
@@ -572,7 +600,16 @@ export class KandelHistoryResolver {
         }
       }
     });
-    return fills.map(v => new KandelFill(v));
+    return fills.map(v => new KandelFill({
+      base: v.order.offerListing.inboundToken,
+      quote: v.order.offerListing.outboundToken,
+      baseAmount: v.order.offerListing.inboundToken.id == kandel?.baseId ? v.takerGaveNumber : v.takerGotNumber,
+      quoteAmount: v.order.offerListing.outboundToken.id == kandel?.quoteId ? v.takerGotNumber : v.takerGaveNumber,
+      date: v.order.tx.time,
+      price: v.offerVersion.offer.kandelOfferIndexes ? (v.offerVersion.offer.kandelOfferIndexes.ba == "ask" ? v.takerPaidPrice ?? 0 : v.makerPaidPrice ?? 0 ) : 0,
+      offerType: v.offerVersion.offer.kandelOfferIndexes ? (v.offerVersion.offer.kandelOfferIndexes.ba == "ask" ? "asks" : "bids" ) : "",
+      txHash: v.order.tx.txHash,
+    }));
   }
 
   @Query(() => [KandelFailedOffer])
@@ -588,6 +625,7 @@ export class KandelHistoryResolver {
     }
     const chainId = new ChainId(chain);
     const kandelId = new KandelId(chainId, address);
+    const kandel = await ctx.prisma.kandel.findUnique({ where: { id: kandelId.value }, include: { baseToken:true, quoteToken:true} });
     const failedOffer = await ctx.prisma.takenOffer.findMany({
       skip, take,
       where: {
@@ -599,18 +637,12 @@ export class KandelHistoryResolver {
         OR: [
           { NOT: { failReason: null } }, { posthookFailed: true }]
       },
-      select: {
-        takerGave: true,
-        takerGot: true,
+      include: {
         order: {
-          select: {
-            tx: {
-              select: {
-                time: true
-              }
-            },
+          include: {
+            tx: true,
             offerListing: {
-              select: {
+              include: {
                 inboundToken: true,
                 outboundToken: true
               }
@@ -620,11 +652,18 @@ export class KandelHistoryResolver {
       },
       orderBy: { order: { tx: { time: 'desc' } } }
     });
-    return failedOffer.map(v => new KandelFailedOffer(v));
+    return failedOffer.map(v => new KandelFailedOffer({
+      base: kandel!.baseToken,
+      quote: kandel!.quoteToken,
+      baseAmount: v.order.offerListing.inboundToken.id == kandel?.baseId ? v.takerGaveNumber : v.takerGotNumber,
+      quoteAmount: v.order.offerListing.outboundToken.id == kandel?.quoteId ? v.takerGotNumber : v.takerGaveNumber,
+      date: v.order.tx.time,
+      txHash: v.order.tx.txHash,
+    }));
   }
 
 
-  @Query(() => KandelDepositWithdraw)
+  @Query(() => [KandelDepositWithdraw])
   async kandelDepositWithdraw(
     @Arg("address") address: string,
     @Arg("chain") chain: number,
@@ -646,19 +685,15 @@ export class KandelHistoryResolver {
         ]
       },
       include: {
+        
         TokenBalanceDepositEvent: {
-          select: {
-            value: true,
+          include: {
             tokenBalanceEvent: {
-              select: {
+              include: {
                 token: true,
                 tokenBalanceVersion: {
-                  select: {
-                    tx: {
-                      select: {
-                        time: true
-                      }
-                    }
+                  include: {
+                    tx: true
                   }
                 }
               }
@@ -666,18 +701,13 @@ export class KandelHistoryResolver {
           }
         },
         TokenBalanceWithdrawalEvent: {
-          select: {
-            value: true,
+          include: {
             tokenBalanceEvent: {
-              select: {
-                token: true,
+              include: {
+                token:true,
                 tokenBalanceVersion: {
-                  select: {
-                    tx: {
-                      select: {
-                        time: true
-                      }
-                    }
+                  include: {
+                    tx: true
                   }
                 }
               }
@@ -693,14 +723,17 @@ export class KandelHistoryResolver {
         }
       }
     })
-    return events.map(v => {
-      if (v.TokenBalanceDepositEvent) {
-        return new KandelDepositWithdraw({ ...v.TokenBalanceDepositEvent, event: "deposit" })
-      } else if (v.TokenBalanceWithdrawalEvent) {
-        return new KandelDepositWithdraw({ ...v.TokenBalanceWithdrawalEvent, event: "withdraw" });
-      }
-      throw new GraphQLError("missing deposit/withdrawal event");
+    const toReturn = events.map(v => {
+      const event = v.TokenBalanceDepositEvent ?? v.TokenBalanceWithdrawalEvent;
+      return new KandelDepositWithdraw({ 
+        valueReceived: event ? fromBigNumber( { value: event.value , token: event.tokenBalanceEvent.token }) : 0,
+        currency: event!.tokenBalanceEvent.token,
+        date: event!.tokenBalanceEvent.tokenBalanceVersion.tx.time,
+        event: v.TokenBalanceDepositEvent ? "deposit" : "withdraw",
+        txHash: event!.tokenBalanceEvent.tokenBalanceVersion.tx.txHash
+       });
     });
+    return toReturn;
   }
 
 
@@ -733,23 +766,24 @@ export class KandelHistoryResolver {
       take, skip
     })
 
-    return paramEvents.map(event => {
+    return paramEvents.reduce((result, event) => {
       if (event.KandelAdminEvent) {
-        return new KandelParameter({ event: { tx: { time: event.KandelVersion?.tx.time }, prevVersion: JSON.stringify({ value: event.KandelVersion?.prevVersion?.admin.address }) }, type: "admin", value: JSON.stringify(({ value: event.KandelAdminEvent.admin })) })
+        return [...result, new KandelParameter({ event: { tx: event.KandelVersion?.tx, prevVersion: JSON.stringify({ value: event.KandelVersion?.prevVersion?.admin.address }) }, type: "admin", value: JSON.stringify(({ value: event.KandelAdminEvent.admin })) }) ]
       } else if (event.KandelGasReqEvent) {
-        return new KandelParameter({ event: { tx: { time: event.KandelVersion?.tx.time }, prevVersion: JSON.stringify({ value: event.KandelVersion?.prevVersion?.configuration.gasReq }) }, type: "gasReq", value: JSON.stringify({ value: event.KandelGasReqEvent.gasReq }) })
+        return [...result, new KandelParameter({ event: { tx: event.KandelVersion?.tx, prevVersion: JSON.stringify({ value: event.KandelVersion?.prevVersion?.configuration.gasReq }) }, type: "gasReq", value: JSON.stringify({ value: event.KandelGasReqEvent.gasReq }) }) ]
       } else if (event.KandelLengthEvent) {
-        return new KandelParameter({ event: { tx: { time: event.KandelVersion?.tx.time }, prevVersion: JSON.stringify({ value: event.KandelVersion?.prevVersion?.configuration.length.toString() }) }, type: "length", value: JSON.stringify({ value: event.KandelLengthEvent.length.toString() }) })
+        return [...result, new KandelParameter({ event: { tx: event.KandelVersion?.tx, prevVersion: JSON.stringify({ value: event.KandelVersion?.prevVersion?.configuration.length.toString() }) }, type: "length", value: JSON.stringify({ value: event.KandelLengthEvent.length.toString() }) }) ]
       } else if (event.KandelRouterEvent) {
-        return new KandelParameter({ event: { tx: { time: event.KandelVersion?.tx.time }, prevVersion: JSON.stringify({ value: event.KandelVersion?.prevVersion?.routerAddress }) }, type: "router", value: JSON.stringify({ value: event.KandelRouterEvent.router }) });
+        return [...result, new KandelParameter({ event: { tx: event.KandelVersion?.tx, prevVersion: JSON.stringify({ value: event.KandelVersion?.prevVersion?.routerAddress }) }, type: "router", value: JSON.stringify({ value: event.KandelRouterEvent.router }) }) ];
       } else if (event.gasPriceEvent) {
-        return new KandelParameter({ event: { tx: { time: event.KandelVersion?.tx.time }, prevVersion: JSON.stringify({ value: event.KandelVersion?.prevVersion?.configuration.gasPrice }) }, type: "gasPrice", value: JSON.stringify({ value: event.gasPriceEvent.gasPrice }) });
+        return [...result, new KandelParameter({ event: { tx: event.KandelVersion?.tx, prevVersion: JSON.stringify({ value: event.KandelVersion?.prevVersion?.configuration.gasPrice }) }, type: "gasPrice", value: JSON.stringify({ value: event.gasPriceEvent.gasPrice }) }) ];
       } else if (event.compoundRateEvent) {
-        return new KandelParameter({ event: { tx: { time: event.KandelVersion?.tx.time }, prevVersion: JSON.stringify({ value: { base: event.KandelVersion?.prevVersion?.configuration.compoundRateBase.toString(), quote: event.KandelVersion?.prevVersion?.configuration.compoundRateQuote.toString() } }) }, type: "compoundRateBase", value: JSON.stringify({ value: { base: event.compoundRateEvent.compoundRateBase.toString(), quote: event.compoundRateEvent.compoundRateQuote.toString() } }) })
+        return [...result, new KandelParameter({ event: { tx: event.KandelVersion?.tx, prevVersion: JSON.stringify({ value: { base: event.KandelVersion?.prevVersion?.configuration.compoundRateBase.toString(), quote: event.KandelVersion?.prevVersion?.configuration.compoundRateQuote.toString() } }) }, type: "compoundRateBase", value: JSON.stringify({ value: { base: event.compoundRateEvent.compoundRateBase.toString(), quote: event.compoundRateEvent.compoundRateQuote.toString() } }) }) ]
       } else if (event.KandelGeometricParamsEvent) {
-        return new KandelParameter({ event: { tx: { time: event.KandelVersion?.tx.time }, prevVersion: JSON.stringify({ value: { ratio: event.KandelVersion?.prevVersion?.configuration.ratio.toString(), spread: event.KandelVersion?.prevVersion?.configuration.spread.toString() } }) }, type: "ratio", value: JSON.stringify({ value: { ratio: event.KandelGeometricParamsEvent.ratio.toString(), spread: event.KandelGeometricParamsEvent.spread.toString() } }) })
+        return [...result, new KandelParameter({ event: { tx: event.KandelVersion?.tx, prevVersion: JSON.stringify({ value: { ratio: event.KandelVersion?.prevVersion?.configuration.ratio.toString(), spread: event.KandelVersion?.prevVersion?.configuration.spread.toString() } }) }, type: "ratio", value: JSON.stringify({ value: { ratio: event.KandelGeometricParamsEvent.ratio.toString(), spread: event.KandelGeometricParamsEvent.spread.toString() } }) }) ]
       }
-    }).filter(v => v == undefined ? false : true) as KandelParameter[];
+      return result;
+    }, [] as KandelParameter[]);
 
 
   }
@@ -768,33 +802,54 @@ export class KandelHistoryResolver {
     }
     const chainId = new ChainId(chain);
     const kandelId = new KandelId(chainId, address);
-    const events = await ctx.prisma.kandelEvent.findMany({
-      where: { kandelId: kandelId.value, NOT: [{ KandelVersion: null }, { OR: [{ KandelPopulateEvent: null }, { KandelRetractEvent: null }] }] },
+    const kandel = await ctx.prisma.kandel.findUnique({ 
+      where: { id: kandelId.value },
       include: {
-        KandelVersion: { include: { tx: true, prevVersion: { include: { admin: true, configuration: true } } } },
-        KandelPopulateEvent: { select: { KandelOfferUpdate: { select: { offer: { select: { offerListing: { select: { outboundToken: true, inboundToken: true } } } }, gives: true } }, event: { select: { KandelVersion: { select: { tx: { select: { time: true } } } } } } } },
-        KandelRetractEvent: { select: { KandelOfferUpdate: { select: { offer: { select: { offerListing: { select: { outboundToken: true, inboundToken: true } } } }, gives: true } }, event: { select: { KandelVersion: { select: { tx: { select: { time: true } } } } } } } }
-      },
-      orderBy: { KandelVersion: { tx: { time: 'desc' } } },
-      take, skip
+        baseToken: true,
+        quoteToken: true,
+        KandelEvent: {
+          include: {  
+            transaction: true,
+            KandelVersion: { include: { tx: true, prevVersion: { include: { admin: true, configuration: true } } } },
+            KandelPopulateEvent: { include: { KandelOfferUpdate: { include: { offer: { include: { offerListing: { include: { outboundToken: true, inboundToken: true } } } } } }, event: { include: { KandelVersion: { include: { tx: true } } } } } },
+            KandelRetractEvent: { include: { KandelOfferUpdate: { include: { offer: { include: { offerListing: { include: { outboundToken: true, inboundToken: true } } } } } }, event: { include: { KandelVersion: { include: { tx: true } } } } } }
+          },
+          where: { OR: [ { NOT:{ KandelPopulateEvent: null } }, { NOT: { KandelRetractEvent: null } }]   },
+          take,
+          skip,
+          orderBy: { KandelVersion: { tx: { time: 'desc' } } }
+        }
+      } 
     })
 
-    const { inboundToken: tokenA, outboundToken: tokenB } = events[0].KandelPopulateEvent!.KandelOfferUpdate[0].offer.offerListing;
-    const retractsAndPopulates = events.map(v => {
-      if (v.KandelPopulateEvent || v.KandelRetractEvent) {
-        const e = (v.KandelPopulateEvent ? v.KandelPopulateEvent.KandelOfferUpdate : v.KandelRetractEvent?.KandelOfferUpdate)
-        return new KandelPopulateRetract({
-          tokenA,
-          tokenAAmount: e?.filter(o => o.offer.offerListing.inboundToken.id === tokenA.id).map(o => o.gives).reduce((result, current) => new BigNumber(result).plus(new BigNumber(current)).toString()) ?? "0",
-          tokenB,
-          tokenBAmount: e?.filter(o => o.offer.offerListing.inboundToken.id === tokenB.id).map(o => o.gives).reduce((result, current) => new BigNumber(result).plus(new BigNumber(current)).toString()) ?? "0",
-          date: v.KandelVersion?.tx.time,
-          event: v.KandelPopulateEvent ? "populate" : "retract"
-        })
-      }
-    });
 
-    return retractsAndPopulates.filter(v => v == undefined ? false : true) as KandelPopulateRetract[];
+    const retractsAndPopulates = kandel?.KandelEvent.reduce((result, current) => {
+      if (current.KandelPopulateEvent || current.KandelRetractEvent) {
+        const e = (current.KandelPopulateEvent ? current.KandelPopulateEvent : current.KandelRetractEvent)
+          return [...result, new KandelPopulateRetract({
+          base: kandel.baseToken,
+          baseAmount: this.getPopulateRetractOfferAmount(e?.KandelOfferUpdate, kandel.baseToken),
+          quote: kandel.quoteToken,
+          quoteAmount: this.getPopulateRetractOfferAmount(e?.KandelOfferUpdate, kandel.quoteToken),
+          date: current.transaction.time,
+          event: current.KandelPopulateEvent ? "populate" : "retract",
+          txHash: current.transaction.txHash,
+        }) ]
+      }
+      return result;
+    }, [] as KandelPopulateRetract[] );
+    return  retractsAndPopulates ?? [];
   }
 
+
+  private getPopulateRetractOfferAmount(e:(KandelOfferUpdate & {
+    offer: Offer & {
+        offerListing: OfferListing & {
+            outboundToken: Token;
+            inboundToken: Token;
+        };
+    };
+})[] | undefined, token:Token): number {
+    return e && e.length > 0 ? e.filter(o => o.offer.offerListing.outboundToken.id == token.id).map(o => fromBigNumber({value: o.gives, token }) ).reduce((result, current) => result + current, 0) : 0;
+  }
 }

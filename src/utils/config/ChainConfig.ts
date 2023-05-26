@@ -5,9 +5,9 @@ export type ChainConfig = {
     strats?: string[],
     kandel?: string[],
     tokens?: string[],
+    mgvOracle?: string[],
   }
-  mangroveOrderInclude?: string[]
-  };
+};
 
 
 

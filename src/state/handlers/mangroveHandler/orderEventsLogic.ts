@@ -175,8 +175,8 @@ export class OrderEventLogicHelper {
     const offerId = new OfferId(orderId.mangroveId, orderId.offerListKey, takenOfferEvent.id);
     const offer = await getOffer(offerId);
     const currentVersion = offer?.currentVersion;
-    assert(offer);
-    assert(currentVersion);
+    assert(offer, `offer with offerId ${offerId.value} not found`);
+    assert(currentVersion, `offer with offerId ${offerId.value} has no current version`);
     
     
     const takenOffer: Omit<prisma.TakenOffer, "orderId"> = {

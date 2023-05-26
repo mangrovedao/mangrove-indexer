@@ -31,7 +31,8 @@ export class KandelEventsLogic extends EventsLogic {
         const reserveId = new AccountId(mangroveId.chainId,  event.reserveId == "" || !event.reserveId ? event.kandel : event.reserveId);
         await this.db.accountOperations.ensureAccount(reserveId);
         const newConfiguration = await this.db.kandelOperations.createNewKandelConfiguration(this.mapSetParamsToKandelConfiguration(event.params));
-        const adminId = new AccountId(mangroveId.chainId, event.owner).value;
+        const adminId = new AccountId(mangroveId.chainId, event.owner);
+        await this.db.accountOperations.ensureAccount(adminId);
         const baseToken = new TokenId(mangroveId.chainId, event.base);
         const quoteToken = new TokenId(mangroveId.chainId, event.quote);
 
@@ -40,7 +41,7 @@ export class KandelEventsLogic extends EventsLogic {
             txId: transaction!.id,
             updateFunc: (model) => {
                 _.merge(model, {
-                    adminId: adminId,
+                    adminId: adminId.value,
                     routerAddress: event.params.router,
                     congigurationId: newConfiguration.id,
                 });
@@ -240,7 +241,7 @@ export class KandelEventsLogic extends EventsLogic {
         }
     }
 
-    async handleOfferIndex(
+    async handleSetIndexMapping(
         undo: boolean,
         kandelId: KandelId,
         event: kandel.SetIndexMapping,
@@ -260,64 +261,6 @@ export class KandelEventsLogic extends EventsLogic {
         }
         await this.db.kandelOperations.createOfferIndex(kandelId, transaction!.id, offerId, event.index, event.ba === 1 ? "ask" : "bid");
     }
-
-    // async handleSetAdmin(
-    //     undo: boolean,
-    //     kandelId: KandelId,
-    //     event: kandel.SetAdmin,
-    //     transaction: prisma.Transaction | undefined
-    // ) {
-
-    //     if (undo) {
-    //         await this.db.kandelOperations.deleteLatestKandelVersion(kandelId);
-    //         return;
-    //     }
-    //     const adminId = new AccountId(kandelId.chainId, event.admin);
-    //     await this.db.accountOperations.ensureAccount(adminId);
-
-    //     const newVersions = await this.db.kandelOperations.addVersionedKandel({
-    //         id: kandelId,
-    //         txId: transaction!.id,
-    //         updateFunc: (model) => {
-    //             _.merge(model, {
-    //                 adminId: adminId.value,
-    //             });
-    //         },
-    //     })
-
-    //     const kandelEvent = await this.db.kandelOperations.createKandelEvent(kandelId, transaction!.id, newVersions.kandelVersion);
-    //     await this.db.kandelOperations.createKandelAdminEvent(kandelEvent, event.admin);
-    // }
-
-    // async handelSetRouter(
-    //     undo: boolean,
-    //     kandelId: KandelId,
-    //     event: SetRouter,
-    //     transaction: prisma.Transaction | undefined
-    // ) {
-
-    //     if (undo) {
-    //         await this.db.kandelOperations.deleteLatestKandelVersion(kandelId);
-    //         return;
-    //     }
-
-    //     const newVersions = await this.db.kandelOperations.addVersionedKandel({
-    //         id: kandelId,
-    //         txId: transaction!.id,
-    //         updateFunc: (model) => {
-    //             _.merge(model, {
-    //                 routerAddress: event.router,
-    //             });
-    //         },
-    //     })
-
-    //     const kandelEvent = await this.db.kandelOperations.createKandelEvent(kandelId, transaction!.id, newVersions.kandelVersion);
-    //     await this.db.kandelOperations.createKandelRouterEvent(kandelEvent, event.router);
-
-    // }
-
-
-
 
 }
 

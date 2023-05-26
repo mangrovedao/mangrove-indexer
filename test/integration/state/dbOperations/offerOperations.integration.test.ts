@@ -8,6 +8,7 @@ import {
   MangroveId,
   OfferId,
   OfferListingId,
+  OfferListingVersionId,
   OfferListKey,
   OfferVersionId,
   TokenId
@@ -31,6 +32,7 @@ describe("Offer Operations Integration test suite", () => {
   const offerId = new OfferId(mangroveId, offerListKey, 1);
   const offerVersionId = new OfferVersionId(offerId, 0);
   const offerListingId = new OfferListingId(mangroveId, offerListKey);
+  const offerListingVersionId = new OfferListingVersionId(offerListingId, 0);
   const makerId = new AccountId(chainId, "makerAddress");
   let offer: prismaModel.Offer;
   let offerVersion: prismaModel.OfferVersion;
@@ -62,9 +64,35 @@ describe("Offer Operations Integration test suite", () => {
         live: true,
         isRetracted: false,
         deprovisioned: false,
+        versionNumber: 0,
+        offerListingVersionId: offerListingVersionId.value
+      }
+    })
+
+    await prisma.offerListing.create({
+      data: {
+        id: offerListingId.value,
+        mangroveId: mangroveId.value,
+        outboundTokenId: outboundTokenId.value,
+        inboundTokenId: inboundTokenId.value,
+        currentVersionId: offerListingVersionId.value
+      }
+    })
+
+    await prisma.offerListingVersion.create({
+      data: {
+        id: offerListingVersionId.value,
+        offerListingId: offerListingId.value,
+        txId: "txId",
+        active: true,
+        fee: "0",
+        gasbase: 0,
+        density: "0",
         versionNumber: 0
       }
     })
+
+
   });
 
   describe("getOffer", () => {
@@ -128,6 +156,7 @@ describe("Offer Operations Integration test suite", () => {
         prevVersionId: null,
         kandelPopulateEventId: null,
         kandelRetractEventId: null,
+        offerListingVersionId: offerListingVersionId.value
       });
     })
 
@@ -164,6 +193,61 @@ describe("Offer Operations Integration test suite", () => {
       });
       await assert.rejects( offerOperations.deleteLatestOfferVersion(offerId));
     } );
+
+    it("Has offerWriteEvent relation, delete offerVersion", async () => {
+      const offerVersion = await offerOperations.addVersionedOffer(offerId, "txId", (o) => o.gasreq=10);
+      const mangroveEvent = await prisma.mangroveEvent.create({
+        data: {
+          mangroveId: mangroveId.value,
+          txId: "txId",
+        }})
+      
+      await prisma.offerWriteEvent.create({
+        data: {
+          offerVersionId: offerVersion.id,
+          offerListingId:offerListingId.value,
+          makerId: makerId.value,
+          mangroveEventId: mangroveEvent.id,
+          wants: "0",
+          gives: "0",
+          gasprice: 0,
+          gasreq: 10,
+          prev: 0
+        }
+      })
+      await offerOperations.deleteLatestOfferVersion(offerId);
+      assert.strictEqual(await prisma.offer.count(), 1);
+      assert.strictEqual(await prisma.offerVersion.count(), 1);
+      assert.strictEqual(await prisma.offerWriteEvent.count(), 0);
+      const offer = await prisma.offer.findUnique({where: { id: offerId.value}});
+      assert.strictEqual(offer?.currentVersionId, offerVersionId.value);
+    })
+
+    it("Has offerRetractEvent relation, delete offerVersion", async () => {
+      const offerVersion = await offerOperations.addVersionedOffer(offerId, "txId", (o) => o.gasreq=10);
+      const mangroveEvent = await prisma.mangroveEvent.create({
+        data: {
+          mangroveId: mangroveId.value,
+          txId: "txId",
+        }})
+      await prisma.offerRetractEvent.create({
+        data: {
+          offerVersionId: offerVersion.id,
+          offerListingId: offerListingId.value,
+          mangroveEventId: mangroveEvent.id,
+          deprovision: false,
+        }
+      })
+      await offerOperations.deleteLatestOfferVersion(offerId);
+      assert.strictEqual(await prisma.offer.count(), 1);
+      assert.strictEqual(await prisma.offerVersion.count(), 1);
+      assert.strictEqual(await prisma.offerRetractEvent.count(), 0);
+      assert.strictEqual(await prisma.mangroveEvent.count(), 0);
+      const offer = await prisma.offer.findUnique({where: { id: offerId.value}});
+      assert.strictEqual(offer?.currentVersionId, offerVersionId.value);
+    });
+
+            
 
     it("No prevVersion, delete both offer and offerVersion", async () => {
       assert.strictEqual(await prisma.offer.count(), 1);
