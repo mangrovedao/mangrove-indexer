@@ -46,6 +46,16 @@ describe("Order Operations Integration test Suite", () => {
 
     beforeEach(async () => {
 
+        await prisma.transaction.create({
+            data: {
+                id: "txId",
+                blockNumber: 1,
+                blockHash: "blockHash",
+                time: new Date(),
+                txHash: "txHash",
+                from: "from",
+            }})
+
         await prisma.token.create({
             data: {
                 id: inboundTokenId.value,

@@ -319,15 +319,19 @@ export class MangroveOrderResolver {
       },
       include: {
         offerListing: { include: { inboundToken: true, outboundToken: true } },
-        order: true,
-        takenOffer: true
+        Order: {
+          take: 1
+        },
+        TakenOffer: {
+          take: 1
+        }
       },
       orderBy: { time: 'desc' },
       take, skip
     });
 
     return fills.map(m => {
-      const hasTakenOffer = m.takenOffer != null;
+      const hasTakenOffer = m.TakenOffer.length > 0;
       const fillsAmount = this.getFillsAmount(m.offerListing.outboundToken.address, token2, m.takerGot, m.takerGave, hasTakenOffer) ?? 0;
       const paid = this.getFillsPaid(m.offerListing.outboundToken.address, token2, m.takerGot, m.takerGave, hasTakenOffer) ?? 0;
       return new MangroveOrderFillWithTokens({
