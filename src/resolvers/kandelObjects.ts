@@ -268,7 +268,7 @@ export class KandelParameter {
             prevVersion:  string | undefined;
     };
     value: string;
-    type: "admin" | "compoundRateBase" | "compoundRateQuote" | "gasReq" | "gasPrice" | "spread" | "ratio" | "length" | "router";
+    type: "admin" | "compoundRate" | "gasReq" | "gasPrice" | "geometricParams" | "length" | "router";
   }){
     this.date = params.event.tx?.time;
     this.parameter = params.type;
@@ -280,7 +280,7 @@ export class KandelParameter {
   date?: Date;
 
   @Field()
-  parameter!:"admin" | "compoundRateBase" | "compoundRateQuote" | "gasReq" | "gasPrice" | "spread" | "ratio" | "length" | "router" | "newKandel";
+  parameter!:"admin" | "compoundRate" | "gasReq" | "gasPrice" | "geometricParams" | "length" | "router" | "newKandel";
 
   @Field()
   previousValue?: string; 
