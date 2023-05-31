@@ -4,7 +4,7 @@ import {
   TakenOffer,
   Token
 } from "@generated/type-graphql";
-import { KandelOfferUpdate, Offer, PrismaClient } from "@prisma/client";
+import { PrismaClient,  TokenBalance, TokenBalanceVersion, KandelOfferUpdate, Offer } from "@prisma/client";
 import { Arg, Ctx, Query, Resolver } from "type-graphql";
 
 // At most re-fetch once per 1000 ms for each token
@@ -422,6 +422,12 @@ export class KandelHomePageResolver {
                   }
                 }
               }
+            },
+            TokenBalance: {
+              include: {
+                token: true,
+                currentVersion: true
+              }
             }
           }
         },
@@ -436,8 +442,12 @@ export class KandelHomePageResolver {
         }
       }
     })
-
+    const rateMap = new Map<string, number>();
     return (await Promise.all(kandels.map(async kandel => {
+      rateMap.get(kandel.baseToken.id) ?? rateMap.set(kandel.baseToken.id, await fetchTokenPriceIn(kandel.baseToken, 'USDC'));
+      rateMap.get(kandel.quoteToken.id) ?? rateMap.set(kandel.quoteToken.id, await fetchTokenPriceIn(kandel.quoteToken, 'USDC'));
+      const baseRate = rateMap.get(kandel.baseToken.id) ?? 0;
+      const quoteRate = rateMap.get(kandel.quoteToken.id) ?? 0;
       return new KandelStrategy({
         name: kandel.type,
         address: kandel.strat.address,
@@ -445,6 +455,7 @@ export class KandelHomePageResolver {
         base: kandel.baseToken,
         quote: kandel.quoteToken,
         return: await kandelReturnUtils.getKandelReturn(new KandelId(chainId, kandel.strat.address), ctx.prisma, (token) => fetchTokenPriceIn(token, 'USDC')),
+        earnedTotal: this.getTotalEarned(kandel.strat.TokenBalance, { token:kandel.baseToken, rate: baseRate}, { token: kandel.quoteToken, rate: quoteRate }),
         type: kandel.type,
         offers: kandel.strat.offers.map(offer => new KandelOffer({
           gives: offer.currentVersion?.givesNumber ?? 0,
@@ -498,6 +509,12 @@ export class KandelHomePageResolver {
                   }
                 }
               }
+            },
+            TokenBalance: {
+              include: {
+                token: true,
+                currentVersion: true
+              }
             }
           }
         },
@@ -515,6 +532,8 @@ export class KandelHomePageResolver {
     if (!kandel) {
       throw new GraphQLError(`Cannot find kandel with address: ${address} and chain: ${chain}`);
     }
+    const baseRate = await fetchTokenPriceIn(kandel.baseToken, 'USDC');
+    const quoteRate = await fetchTokenPriceIn(kandel.quoteToken, 'USDC');
     return new KandelStrategy({
       name: kandel.type,
       address: kandel.strat.address,
@@ -522,6 +541,7 @@ export class KandelHomePageResolver {
       base: kandel.baseToken,
       quote: kandel.quoteToken,
       return: await kandelReturnUtils.getKandelReturn(new KandelId(chainId, kandel.strat.address), ctx.prisma, (token) => fetchTokenPriceIn(token, 'USDC')),
+      earnedTotal: this.getTotalEarned(kandel.strat.TokenBalance, { token:kandel.baseToken, rate: baseRate}, { token: kandel.quoteToken, rate: quoteRate }),
       type: kandel.type,
       offers: kandel.strat.offers.map( offer => new KandelOffer({
         gives: offer.currentVersion?.givesNumber ?? 0,
@@ -540,6 +560,17 @@ export class KandelHomePageResolver {
         initialTxHash: offer.offerVersions[0]?.tx.txHash ?? "",
       }))
     });
+  }
+
+  private getTotalEarned(tokenBalances: (TokenBalance & {
+    currentVersion: TokenBalanceVersion | null,
+    token: Token,
+  })[], base: { token: Token, rate: number }, quote: { token: Token, rate: number }): number {
+    const currentBase = tokenBalances.find((tb) => tb.tokenId == base.token.id)?.currentVersion;
+    const currentQuote = tokenBalances.find((tb) => tb.tokenId == quote.token.id)?.currentVersion;
+    const currentBaseInUSDC = currentBase ? fromBigNumber( { value: new BigNumber( currentBase.received ).minus( currentBase.send).toString(), token: base.token})* base.rate : 0;
+    const currentQuoteInUSDC = currentQuote ? fromBigNumber( { value: new BigNumber( currentQuote.received ).minus( currentQuote.send).toString(), token: quote.token})* quote.rate : 0;
+    return currentBaseInUSDC + currentQuoteInUSDC;
   }
 }
 
