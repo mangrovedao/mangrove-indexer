@@ -316,15 +316,19 @@ export class MangroveOrderResolver {
       },
       include: {
         offerListing: { include: { inboundToken: true, outboundToken: true } },
-        order: true,
-        takenOffer: true
+        Order: {
+          take: 1
+        },
+        TakenOffer: {
+          take: 1
+        }
       },
       orderBy: { time: 'desc' },
       take, skip
     });
 
     return fills.map(m => {
-      const hasTakenOffer = m.takenOffer != null;
+      const hasTakenOffer = m.TakenOffer.length > 0;
       const fillsAmount = this.getFillsAmount(m.offerListing.outboundToken.address, token2, m.takerGot, m.takerGave, hasTakenOffer) ?? 0;
       const paid = this.getFillsPaid(m.offerListing.outboundToken.address, token2, m.takerGot, m.takerGave, hasTakenOffer) ?? 0;
       return new MangroveOrderFillWithTokens({
@@ -773,9 +777,9 @@ export class KandelHistoryResolver {
       } else if (event.gasPriceEvent) {
         return [...result, new KandelParameter({ event: { tx: event.KandelVersion?.tx, prevVersion: JSON.stringify({ value: event.KandelVersion?.prevVersion?.configuration.gasPrice }) }, type: "gasPrice", value: JSON.stringify({ value: event.gasPriceEvent.gasPrice }) }) ];
       } else if (event.compoundRateEvent) {
-        return [...result, new KandelParameter({ event: { tx: event.KandelVersion?.tx, prevVersion: JSON.stringify({ value: { base: event.KandelVersion?.prevVersion?.configuration.compoundRateBase.toString(), quote: event.KandelVersion?.prevVersion?.configuration.compoundRateQuote.toString() } }) }, type: "compoundRateBase", value: JSON.stringify({ value: { base: event.compoundRateEvent.compoundRateBase.toString(), quote: event.compoundRateEvent.compoundRateQuote.toString() } }) }) ]
+        return [...result, new KandelParameter({ event: { tx: event.KandelVersion?.tx, prevVersion: JSON.stringify({ value: { base: event.KandelVersion?.prevVersion?.configuration.compoundRateBase.toString(), quote: event.KandelVersion?.prevVersion?.configuration.compoundRateQuote.toString() } }) }, type: "compoundRate", value: JSON.stringify({ value: { base: event.compoundRateEvent.compoundRateBase.toString(), quote: event.compoundRateEvent.compoundRateQuote.toString() } }) }) ]
       } else if (event.KandelGeometricParamsEvent) {
-        return [...result, new KandelParameter({ event: { tx: event.KandelVersion?.tx, prevVersion: JSON.stringify({ value: { ratio: event.KandelVersion?.prevVersion?.configuration.ratio.toString(), spread: event.KandelVersion?.prevVersion?.configuration.spread.toString() } }) }, type: "ratio", value: JSON.stringify({ value: { ratio: event.KandelGeometricParamsEvent.ratio.toString(), spread: event.KandelGeometricParamsEvent.spread.toString() } }) }) ]
+        return [...result, new KandelParameter({ event: { tx: event.KandelVersion?.tx, prevVersion: JSON.stringify({ value: { ratio: event.KandelVersion?.prevVersion?.configuration.ratio.toString(), spread: event.KandelVersion?.prevVersion?.configuration.spread.toString() } }) }, type: "geometricParams", value: JSON.stringify({ value: { ratio: event.KandelGeometricParamsEvent.ratio.toString(), spread: event.KandelGeometricParamsEvent.spread.toString() } }) }) ]
       }
       return result;
     }, [] as KandelParameter[]);

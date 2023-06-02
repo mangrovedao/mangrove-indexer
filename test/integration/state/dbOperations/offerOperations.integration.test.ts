@@ -194,6 +194,61 @@ describe("Offer Operations Integration test suite", () => {
       await assert.rejects( offerOperations.deleteLatestOfferVersion(offerId));
     } );
 
+    it("Has offerWriteEvent relation, delete offerVersion", async () => {
+      const offerVersion = await offerOperations.addVersionedOffer(offerId, "txId", (o) => o.gasreq=10);
+      const mangroveEvent = await prisma.mangroveEvent.create({
+        data: {
+          mangroveId: mangroveId.value,
+          txId: "txId",
+        }})
+      
+      await prisma.offerWriteEvent.create({
+        data: {
+          offerVersionId: offerVersion.id,
+          offerListingId:offerListingId.value,
+          makerId: makerId.value,
+          mangroveEventId: mangroveEvent.id,
+          wants: "0",
+          gives: "0",
+          gasprice: 0,
+          gasreq: 10,
+          prev: 0
+        }
+      })
+      await offerOperations.deleteLatestOfferVersion(offerId);
+      assert.strictEqual(await prisma.offer.count(), 1);
+      assert.strictEqual(await prisma.offerVersion.count(), 1);
+      assert.strictEqual(await prisma.offerWriteEvent.count(), 0);
+      const offer = await prisma.offer.findUnique({where: { id: offerId.value}});
+      assert.strictEqual(offer?.currentVersionId, offerVersionId.value);
+    })
+
+    it("Has offerRetractEvent relation, delete offerVersion", async () => {
+      const offerVersion = await offerOperations.addVersionedOffer(offerId, "txId", (o) => o.gasreq=10);
+      const mangroveEvent = await prisma.mangroveEvent.create({
+        data: {
+          mangroveId: mangroveId.value,
+          txId: "txId",
+        }})
+      await prisma.offerRetractEvent.create({
+        data: {
+          offerVersionId: offerVersion.id,
+          offerListingId: offerListingId.value,
+          mangroveEventId: mangroveEvent.id,
+          deprovision: false,
+        }
+      })
+      await offerOperations.deleteLatestOfferVersion(offerId);
+      assert.strictEqual(await prisma.offer.count(), 1);
+      assert.strictEqual(await prisma.offerVersion.count(), 1);
+      assert.strictEqual(await prisma.offerRetractEvent.count(), 0);
+      assert.strictEqual(await prisma.mangroveEvent.count(), 0);
+      const offer = await prisma.offer.findUnique({where: { id: offerId.value}});
+      assert.strictEqual(offer?.currentVersionId, offerVersionId.value);
+    });
+
+            
+
     it("No prevVersion, delete both offer and offerVersion", async () => {
       assert.strictEqual(await prisma.offer.count(), 1);
       assert.strictEqual(await prisma.offerVersion.count(), 1);

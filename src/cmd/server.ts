@@ -22,6 +22,7 @@ import {
 } from "src/resolvers/customFieldResolvers";
 import logger from "src/utils/logger";
 import { NonEmptyArray, buildSchema } from "type-graphql";
+import { GrafanaResolver } from "src/resolvers/grafanaResolvers";
 
 const prisma = new PrismaClient();
 
@@ -33,6 +34,7 @@ async function main() {
     KandelHomePageResolver,
     KandelManageStrategyPageResolver,
     MangroveOrderResolver,
+    GrafanaResolver,
     ...(WITH_RESOLVERS ? Array.from( graphql.resolvers.values() ) : [])
    ];
   
