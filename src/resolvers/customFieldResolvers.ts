@@ -10,20 +10,17 @@ import { Arg, Ctx, Query, Resolver } from "type-graphql";
 // At most re-fetch once per 1000 ms for each token
 import BigNumber from "bignumber.js";
 import { GraphQLError } from "graphql";
-import { MemoryCache, fetchBuilder } from "node-fetch-cache";
 import { AccountId, ChainId, KandelId } from "src/state/model";
 import { KandelReturnUtils } from "src/utils/KandelReturnUtils";
 import { fromBigNumber, getFromBigNumber } from "src/utils/numberUtils";
-import { KandelDepositWithdraw, KandelFailedOffer, KandelFill, KandelOffer, KandelParameter, KandelPopulateRetract, KandelStrategy } from "./kandelObjects";
+import { KandelDepositWithdraw, KandelFailedOffer, KandelFill, KandelOffer, KandelParameter, KandelPopulateRetract, KandelStrategy, Rate } from "./kandelObjects";
 import { MangroveOrderFillWithTokens, MangroveOrderOpenOrder } from "./mangroveOrderObjects";
-const fetch = fetchBuilder.withCache(new MemoryCache({ ttl: 1000 }));
-async function fetchTokenPriceIn(token: Token, inSymbol: string) {
-  return (await fetch(
-    `https://min-api.cryptocompare.com/data/price?fsym=${token.symbol}&tsyms=${inSymbol}`
-  )
-    .then((response: any) => response.json())
-    .then((json: any) => json[inSymbol])
-    .catch(() => undefined)) as number;
+function fetchTokenPriceIn(rates: Rate[], token: Token) {
+  const rate = rates.find(rate => rate.tokenAddress.toLowerCase() == token.address.toLowerCase())?.rate;
+  if (!rate) {
+    throw new Error(`Cannot find rate for token ${token.address}`);
+  }
+  return rate;
 }
 
 type Context = {
@@ -390,6 +387,7 @@ export class KandelHomePageResolver {
     @Arg("mangrove") mangrove: string,
     @Arg("take") take: number,
     @Arg("skip") skip: number,
+    @Arg("rates", type => [Rate]) rates: Rate[],
     @Ctx() ctx: Context
   ): Promise<KandelStrategy[]> {
     if (take > 100) {
@@ -444,7 +442,7 @@ export class KandelHomePageResolver {
         reserve: kandel.reserve.address,
         base: kandel.baseToken,
         quote: kandel.quoteToken,
-        return: await kandelReturnUtils.getKandelReturn(new KandelId(chainId, kandel.strat.address), ctx.prisma, (token) => fetchTokenPriceIn(token, 'USDC')),
+        return: await kandelReturnUtils.getKandelReturn(new KandelId(chainId, kandel.strat.address), ctx.prisma, (token) => fetchTokenPriceIn(rates, token)),
         type: kandel.type,
         offers: kandel.strat.offers.map(offer => new KandelOffer({
           gives: offer.currentVersion?.givesNumber ?? 0,
@@ -470,6 +468,7 @@ export class KandelHomePageResolver {
   async kandelStrategy(
     @Arg("address") address: string,
     @Arg("chain") chain: number,
+    @Arg("rates", type => [Rate]) rates: Rate[],
     @Ctx() ctx: Context
   ): Promise<KandelStrategy> {
     const chainId = new ChainId(chain);
@@ -521,7 +520,7 @@ export class KandelHomePageResolver {
       reserve: kandel.reserve.address,
       base: kandel.baseToken,
       quote: kandel.quoteToken,
-      return: await kandelReturnUtils.getKandelReturn(new KandelId(chainId, kandel.strat.address), ctx.prisma, (token) => fetchTokenPriceIn(token, 'USDC')),
+      return: await kandelReturnUtils.getKandelReturn(new KandelId(chainId, kandel.strat.address), ctx.prisma, (token) => fetchTokenPriceIn(rates, token )),
       type: kandel.type,
       offers: kandel.strat.offers.map( offer => new KandelOffer({
         gives: offer.currentVersion?.givesNumber ?? 0,

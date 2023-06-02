@@ -74,7 +74,7 @@ export type rates = {
 
 export class KandelReturnUtils {
 
-    async getKandelReturn(kandelId: KandelId, prisma: PrismaClient, rate: (token: Token) => Promise<number>) {
+    async getKandelReturn(kandelId: KandelId, prisma: PrismaClient, rate: (token: Token) => number) {
         const { rates, periods: periods } = await this.getData(kandelId, prisma, rate);
         if (!rates) {
             return "0";
@@ -118,13 +118,13 @@ export class KandelReturnUtils {
         return avgReturnMonth;
     }
     
-    async getData(kandelId: KandelId, prisma: PrismaClient, rate: (token: Token) => Promise<number>): Promise< { rates?:rates, periods: period[]}> {
+    async getData(kandelId: KandelId, prisma: PrismaClient, rate: (token: Token) => number): Promise< { rates?:rates, periods: period[]}> {
         const tokens = await prisma.kandel.findUnique({ where: { id: kandelId.value }, select: { baseToken: true, quoteToken: true } });
         if (!tokens) {
             return { periods: [] }
         }
-        const baseRate: number = await rate(tokens.baseToken);
-        const quoteRate: number = await rate(tokens.quoteToken);
+        const baseRate: number = rate(tokens.baseToken);
+        const quoteRate: number = rate(tokens.quoteToken);
     
         const events = (await prisma.kandelEvent.findMany({
             where: { kandelId: kandelId.value, OR: [{ NOT: { KandelPopulateEvent: null } }, { NOT: { KandelRetractEvent: null } }] }, include: {
